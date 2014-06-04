@@ -13,5 +13,6 @@ unsigned char set_text() {
 	nTextRow = 920;
 	nTextEnd = 959;
 	nTextPos = nTextRow;
+	vdpmemset(gImage, ' ', nTextEnd+1);
 	return unblank;
 }

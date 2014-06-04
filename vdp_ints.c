@@ -41,11 +41,6 @@ void my_nmi() {
 	vdpLimi = 1;				// now allow them (we know it was previously set - note this loses any that occurred while we ran!)
 }
 
-// called automatically by crt0.S (not in TI version)
-void vdpinit() {
-	vdpLimi = 0;
-	VDP_STATUS_MIRROR = VDPST;	// init and clear any pending interrupt
-}
 
 void setUserIntHook(void (*hookfn)()) {
 	intHookReady = 0;	// protect the vector
@@ -57,3 +52,26 @@ void clearUserIntHook() {
 	intHookReady = 0;
 }
 
+// the init code needs this to mute the audio channels
+volatile __sfr __at 0xff SOUND;
+
+// called automatically by crt0.S (not in TI version)
+void vdpinit() {
+	volatile unsigned int x;
+	
+	// shut off the sound generator - if the cart skips the BIOS screen, this is needed.
+	SOUND = 0x9f;
+	SOUND = 0xbf;
+	SOUND = 0xdf;
+	SOUND = 0xff;
+
+	vdpLimi = 0;
+
+	// before touching VDP, a brief delay. This gives time for the F18A to finish
+	// initializing before we touch the VDP itself. This is needed on the Coleco if
+	// you don't use the BIOS startup delay. This is roughly 200ms.
+	x=60000;
+	while (++x != 0) { }		// counts till we loop at 65536
+
+	VDP_STATUS_MIRROR = VDPST;	// init and clear any pending interrupt
+}

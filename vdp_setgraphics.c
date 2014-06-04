@@ -19,5 +19,6 @@ unsigned char set_graphics(unsigned char sprite_mode) {
 	nTextRow = 736;
 	nTextEnd = 767;
 	nTextPos = nTextRow;
+	vdpmemset(gImage, ' ', nTextEnd+1);
 	return unblank;
 }
