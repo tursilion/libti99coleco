@@ -4,6 +4,7 @@
 	.globl _main
 	.globl _vdpinit
 	.globl _my_nmi
+	.globl _vdpLimi
 
 	.area _HEADER(ABS)
 	.org 0x8000
@@ -51,6 +52,7 @@ start:
 	;; Ordering of segments for the linker - copied from sdcc crt0.s
 	.area _HOME
 	.area _CODE
+	.area _INITIALIZER
 	.area   _GSINIT
 	.area   _GSFINAL
         
@@ -58,20 +60,39 @@ start:
 	.area _BSS
 	.area _HEAP
 
-        .area _CODE
+	.area _BSS
+_vdpLimi:		; 0x80 - interrupt set, other bits used by library
+	.ds 1
 
-nmi:	push af
+    .area _CODE
+nmi:
+; all we do is set the MSB of _vdpLimi, and then check
+; if the LSB is set. If so, we call user code now. if
+; not, the library will deal with it when enabled.
+	push af					; save flags (none affected, but play safe!)
+	push hl
+	
+	ld hl,#_vdpLimi
+	bit 0,(hl)				; check LSb (enable)
+	jp z,notokay
+	
+; okay, full on call, save off the (other) regs
 	push bc
 	push de
-	push hl
 	;push ix ; saved by callee
 	push iy
-	call _my_nmi
+	call _my_nmi			; call the lib version
 	pop iy
 	;pop ix
-	pop hl
 	pop de
-	pop bc
+	pop bc	
+	jp clrup				
+
+notokay:
+	set 7,(hl)				; set MSb (flag)
+
+clrup:
+	pop hl					
 	pop af
 	retn
 

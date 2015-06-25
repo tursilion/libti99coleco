@@ -23,8 +23,11 @@ volatile __sfr __at 0xbe VDPWD;
 // The VDP needs 29 cycles between accesses, roughly. The code generated often is slow enough, if variables are used instead
 // of constants. If you need the speed, you could hand-optimize the asm knowing this. ;)
 inline void VDP_SAFE_DELAY() {	
+// still tuning this... from online comments:
+// Actually, Z80 frequency is 3.579545 MHz (MSX) so the math comes to 28.63, roughly 29 T-states.
+// You must include the OUT instruction, so it means we need 18 additional T-states before the next 
+// VRAM access. That's a lot of unused CPU time, but if it is needed, so be it.
 __asm
-; DELAY LOOP FOR 30 cycles - need 29 between VDP accesses
 	nop
 	nop
 	nop
@@ -33,14 +36,34 @@ __asm
 __endasm;
 }
 
+// TODO: need some hardware testing to understand the VDP limits
+// Can you write the address register full speed? Is it /only/ VRAM access that needs the delay?
+// If true, these sequences are safe: 
+//		ADR,ADR_WR,DATA,>DELAY<
+//		ADR,ADR_RD,>DELAY<,DATA
+// I've taken out the address write safety for that reason, we will see! Even the MSX guys aren't sure.
+//#define PARANOID_TIMING
+
 // Set VDP address for read (no bit added)
+#ifdef PARANOID_TIMING
 inline void VDP_SET_ADDRESS(unsigned int x)							{	VDPWA=((x)&0xff); VDP_SAFE_DELAY(); VDPWA=((x)>>8); __asm nop __endasm;	}
+#else
+inline void VDP_SET_ADDRESS(unsigned int x)							{	VDPWA=((x)&0xff); VDPWA=((x)>>8); VDP_SAFE_DELAY();	}
+#endif
 
 // Set VDP address for write (adds 0x4000 bit)
+#ifdef PARANOID_TIMING
 inline void VDP_SET_ADDRESS_WRITE(unsigned int x)					{	VDPWA=((x)&0xff); VDP_SAFE_DELAY(); VDPWA=(((x)>>8)|0x40);	__asm nop __endasm; }
+#else
+inline void VDP_SET_ADDRESS_WRITE(unsigned int x)					{	VDPWA=((x)&0xff); VDPWA=(((x)>>8)|0x40); }
+#endif
 
 // Set VDP write-only register 'r' to value 'v'
+#ifdef PARANOID_TIMING
 inline void VDP_SET_REGISTER(unsigned char r, unsigned char v)		{	VDPWA=(v); VDP_SAFE_DELAY(); VDPWA=(0x80|(r));	__asm nop __endasm;		}
+#else
+inline void VDP_SET_REGISTER(unsigned char r, unsigned char v)		{	VDPWA=(v); VDPWA=(0x80|(r)); }
+#endif
 
 // get a screen offset for 32x24 graphics mode
 inline int VDP_SCREEN_POS(unsigned int r, unsigned char c)			{	return (((r)<<5)+(c));						}
@@ -70,6 +93,8 @@ extern volatile unsigned char VDP_STATUS_MIRROR;
 // at this address, otherwise the first time a key is pressed, the value will be overwritten.
 // The console uses this to undo the screen timeout blanking. (not needed)
 //#define VDP_REG1_KSCAN_MIRROR	*((volatile unsigned char*)0x83d4)
+//#define FIX_KSCAN(x) VDP_REG1_KSCAN_MIRROR=(x);
+#define FIX_KSCAN(x)
 
 // The console counts up the screen blank timeout here. You can reset it by writing 0,
 // or prevent it from ever triggering by writing an odd number. Each interrupt, it is
@@ -96,8 +121,8 @@ extern volatile unsigned char vdpLimi;
 // we enable interrupts via a mask byte, as Coleco ints are NMI
 // Note that the enable therefore needs to check a flag!
 // Note that on the TI interrupts DISABLED is the default state
-#define VDP_INT_ENABLE			{ vdpLimi |= 1;	if (vdpLimi&0x80) my_nmi(); }
-#define VDP_INT_DISABLE			{ vdpLimi &= 0xfe; }
+#define VDP_INT_ENABLE			{ __asm__("\tpush hl\n\tld hl,#_vdpLimi\n\tset 0,(hl)\n\tpop hl"); if (vdpLimi&0x80) my_nmi(); }
+#define VDP_INT_DISABLE			{ __asm__("\tpush hl\n\tld hl,#_vdpLimi\n\tres 0,(hl)\n\tpop hl"); }
 
 //*********************
 // Register settings
@@ -226,7 +251,14 @@ void vdpscreenchar(int pAddr, unsigned char ch);
 
 // vdpwaitvint - enables console interrupts, then waits for one to happen
 // Interrupts are disabled upon exit.
-void vdpwaitvint();
+// returns non-zero if the interrupt fired before entry (ie: we are late)
+unsigned char vdpwaitvint();
+
+// raw_vdpmemset - sets bytes at the current VDP address
+void raw_vdpmemset(unsigned char ch, int cnt);
+
+// raw_vdpmemcpy - copies bytes from CPU to current VDP address
+void raw_vdpmemcpy(unsigned char *p, int cnt);
 
 // putstring - writes a string with limited formatting to the bottom of the screen
 // Inputs: NUL-terminated string to write
@@ -295,7 +327,7 @@ void charsetlc();
 //void gplvdp(int vect, int adr, int cnt);
 
 // user interrupt access helpers (for more portable code)
-//void vdpinit();	callde automatically, don't use
+//void vdpinit();	called automatically, don't use
 void setUserIntHook(void (*hookfn)());
 void clearUserIntHook();
 void my_nmi();

@@ -1,6 +1,6 @@
 CC = sdcc
 CFLAGS = -mz80 -c "-I../../../include" --std-sdcc99 --vc -DENABLEFX --opt-code-speed
-AS = "/cygdrive/c/program files (x86)/sdcc/bin/sdasz80"
+AS = "c:/program files/sdcc/bin/sdasz80"
 AR = sdar
 AFLAGS = -plosgff
 # might need to use o for older SDCC, rel for newer
@@ -10,6 +10,7 @@ EXT=rel
 NAME=libti99.a
 
 # List of compiled objects used in executable
+#  str_strlen.$(EXT)		- seems to be unneeded in latest SDCC
 OBJECT_LIST=\
   halt.$(EXT)			\
   kscan.$(EXT)			\
@@ -17,7 +18,6 @@ OBJECT_LIST=\
   joystfast.$(EXT)		\
   player.$(EXT)			\
   stcount.$(EXT)			\
-  str_strlen.$(EXT)		\
   vdp_char.$(EXT)		\
   vdp_charset.$(EXT)		\
   vdp_charsetlc.$(EXT)	\
@@ -33,6 +33,8 @@ OBJECT_LIST=\
   vdp_memread.$(EXT)		\
   vdp_memset.$(EXT)		\
   vdp_putstring.$(EXT)	\
+  vdp_rawmemcpy.$(EXT)	\
+  vdp_rawmemset.$(EXT)	\
   vdp_readchar.$(EXT)	\
   vdp_screenchar.$(EXT)	\
   vdp_scrnscroll.$(EXT)	\
@@ -51,7 +53,7 @@ OBJECT_LIST=\
 
 # Recipe to compile the library
 all: library test
-	"/cygdrive/c/work/coleco/tursi/makemegacart/debug/makemegacart.exe" crt0.ihx testib.rom
+	"c:/work/coleco/tursi/makemegacart/debug/makemegacart.exe" crt0.ihx testib.rom
 
 library: $(OBJECT_LIST)
 	rm -f testlib.$(EXT) testlib.asm
@@ -62,7 +64,7 @@ test: library testlib.$(EXT) crt0.$(EXT)
 
 # Recipe to clean all compiled objects
 .phony clean:
-	rm -f *.rel *.map *.lst *.lnk *.sym *.asm *~ *.o *.obj *.ihx *.sprite.* *.rom *.rel
+	rm -f *.rel *.map *.lst *.lnk *.sym *.asm *~ *.o *.obj *.ihx *.sprite.* *.rom *.rel *.a *.lib
 
 # Recipe to compile all C files
 %.rel: %.c

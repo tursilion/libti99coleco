@@ -9,16 +9,14 @@
 // no other TI functionality is simulated (automotion, automusic, quit)
 // but if needed, this is where it goes
 
-// synchronization to protect user interrupt hook
-static unsigned char intHookReady = 0;
-
 // storage for VDP status byte
 volatile unsigned char VDP_STATUS_MIRROR = 0;
 
 // lock variable to prevent NMI from doing anything
 // Z80 int is edge triggered, so it won't break us
 // 0x80 = interrupt pending, 0x01 - interrupts enabled
-volatile unsigned char vdpLimi = 0;		// NO ints by default!
+// (This must be defined in the crt0.s)
+//volatile unsigned char vdpLimi = 0;		// NO ints by default!
 
 // address of user interupt function
 static void (*userint)() = 0;
@@ -26,30 +24,38 @@ static void (*userint)() = 0;
 // interrupt counter
 volatile unsigned char VDP_INT_COUNTER = 0;
 
-// This is a little bit racey...
+// May be called from true NMI or from VDP_INTERRUPT_ENABLE, depending on
+// the flag setting when the true NMI fires.
 void my_nmi() {
-	// do not touch the VDP if interrupts are "disabled".
-	if ((vdpLimi&1) == 0) {
-		vdpLimi|=0x80;			// flag occurred
-		return;
-	}
+	if ((vdpLimi & 1) == 0) return;	// not enabled - we probably raced, so don't run twice.
 
-	vdpLimi = 0;				// block further interrupts
-	VDP_STATUS_MIRROR = VDPST;
-	VDP_INT_COUNTER++;
-	if ((intHookReady)&&(0 != userint)) userint();
-	vdpLimi = 1;				// now allow them (we know it was previously set - note this loses any that occurred while we ran!)
+	// I think we're okay from races. There are only two conditions this is called:
+	// VDP_INTERRUPT_ENABLE - detects that vdpLimi&0x80 was set by the interrupt code.
+	// nmi - detects that vdpLimi&0x01 is valid, and calls directly
+	// The above line may be paranoia... I think the edge cases are covered. Need to
+	// think them through here when less tired.
+
+	vdpLimi = 0;				// clear the interrupt flags
+
+	VDP_STATUS_MIRROR = VDPST;	// release the VDP
+	VDP_INT_COUNTER++;			// count up the frames
+
+	// the TI is running with ints off, so it won't retrigger in the
+	// user code, even if it's slow. Our current process won't either.
+	if (0 != userint) userint();
+
+	// the TI interrupt would normally exit with the ints disabled
+	// if it fired, so we will do the same here and not reset it.
 }
 
-
+// NOT atomic! Do NOT call with interrupts enabled!
 void setUserIntHook(void (*hookfn)()) {
-	intHookReady = 0;	// protect the vector
 	userint = hookfn;
-	intHookReady = 1;	// now it should be safe
 }
 
+// NOT atomic! Do NOT call with interrupts enabled!
 void clearUserIntHook() {
-	intHookReady = 0;
+	userint = 0;
 }
 
 // the init code needs this to mute the audio channels
