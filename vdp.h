@@ -123,6 +123,9 @@ extern volatile unsigned char vdpLimi;
 // Note that on the TI interrupts DISABLED is the default state
 #define VDP_INT_ENABLE			{ __asm__("\tpush hl\n\tld hl,#_vdpLimi\n\tset 0,(hl)\n\tpop hl"); if (vdpLimi&0x80) my_nmi(); }
 #define VDP_INT_DISABLE			{ __asm__("\tpush hl\n\tld hl,#_vdpLimi\n\tres 0,(hl)\n\tpop hl"); }
+#define VDP_INT_POLL	\
+	VDP_INT_ENABLE;		\
+	VDP_INT_DISABLE;
 
 //*********************
 // Register settings

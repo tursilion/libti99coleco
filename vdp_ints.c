@@ -34,6 +34,9 @@ void my_nmi() {
 	// nmi - detects that vdpLimi&0x01 is valid, and calls directly
 	// The above line may be paranoia... I think the edge cases are covered. Need to
 	// think them through here when less tired.
+	
+	// there's still a race here - if we read vdpLimi and it's still '1' above, but NMI before we
+	// set vdpLimi to 0 before, we'll trigger twice.
 
 	vdpLimi = 0;				// clear the interrupt flags
 

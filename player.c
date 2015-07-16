@@ -224,7 +224,7 @@ void stinit(unsigned char *pMod, unsigned char num) {
 
 	for (idx=0; idx<4; idx++) {
 		musicout.vol[idx]=0x9f + (idx*0x20);
-		musicout.tone[idx] = 0;
+		musicout.tone[idx] = 1;		// highest frequency
 	}
 
 	lock = 0;
@@ -250,7 +250,7 @@ void ststop() {
 
 	for (idx=0; idx<4; idx++) {
 		musicout.vol[idx]=0x9f + (idx*0x20);
-		musicout.tone[idx] = 0;
+		musicout.tone[idx] = 1;		// highest frequency
 	}
 
 	playmask &= 0x00ff;		// music not playing
@@ -356,7 +356,7 @@ void stplay() {
 // handles muting channels using the LSB of playmask,
 // and stores the channels being used in the MSB (caller must clear)
 void playone(struct SPF* pMus) {
-	int voice;
+	unsigned char voice;
 
 	for (voice = 0; voice < 4; voice++) {
 		if (pMus->streampos[8+voice]) {		// test time stream pointer (streams 8-11)
@@ -382,7 +382,7 @@ void playone(struct SPF* pMus) {
 							pMus->tmovr[voice]=0x43;
 							pMus->tmocnt[voice]=1;
 							work=0x43;
-							break;
+							break; 
 
 						case 0x7b:
 						case 0x7c:

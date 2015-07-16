@@ -1,7 +1,7 @@
-CC = sdcc
+CC = "c:/program files (x86)/sdcc/bin/sdcc"
 CFLAGS = -mz80 -c "-I../../../include" --std-sdcc99 --vc -DENABLEFX --opt-code-speed
-AS = "c:/program files/sdcc/bin/sdasz80"
-AR = sdar
+AS = "c:/program files (x86)/sdcc/bin/sdasz80"
+AR = "c:/program files (x86)/sdcc/bin/sdar"
 AFLAGS = -plosgff
 # might need to use o for older SDCC, rel for newer
 EXT=rel

@@ -8,18 +8,22 @@
 // Player Data
 //*********************
 
-// pointers into the song data - all include the command nibble. Assumes player uses workspace at >8322
+// pointers into the song data - all include the command nibble.
 struct OUTPUT {
 	unsigned char vol[4];
 	unsigned int tone[4];
 };
 extern struct OUTPUT musicout;
+
+// playmask indicates by bits which channels are active
+// the MSB is music, the LSB is sfx. 0xff indicates not playing,
+// otherwise the four least significant bits indicate active channels.
 extern unsigned int playmask;
 
 #define pVoice (&musicout.tone[0])
 #define pVol   (&musicout.vol[0])
 // pDone is the MSB, and the Z80 is little endian
-#define pDone  (((volatile unsigned char*)&playmask)+1)
+#define pDone  ( (*((volatile unsigned char*)(&playmask)+1)) == 0 )
 
 // note, the pitch bytes are reversed, and as written to the sound chip. This means:
 // for a tone channel, 0x2381 is a pitch value (on channel 0) of 0x0123
