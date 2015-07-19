@@ -17,7 +17,7 @@ extern struct OUTPUT musicout;
 
 // playmask indicates by bits which channels are active
 // the MSB is music, the LSB is sfx. 0xff indicates not playing,
-// otherwise the four least significant bits indicate active channels.
+// otherwise the four least significant bits indicate active channels.z
 extern unsigned int playmask;
 
 #define pVoice (&musicout.tone[0])
