@@ -60,37 +60,45 @@ void playone(struct SPF* pMus);
 // get a compressed byte from a stream (pointer to struct, stream index 0-11)
 unsigned char getbyte(struct SPF* pMus, int idx) {
 	unsigned char ret, cnt;
+	// let's try some local variables for better code?
+	unsigned char* songad = pMus->songad;
+	unsigned char* streamcnt = &pMus->streamcnt[idx];
+	unsigned int* streamref = &pMus->streamref[idx];
+	unsigned int* streampos = &pMus->streampos[idx];
 
-	if (pMus->streamcnt[idx] > 0) {
+	if (*streamcnt > 0) {
 		// working on a count - streamref tells us what to get
-		switch (pMus->streamref[idx]) {
+		switch (*streamref) {
 		default:
 			// in the middle of a run, just get the next byte
-			ret = *(pMus->songad + (pMus->streamref[idx]++));
-			pMus->streamcnt[idx]--;
-			if (pMus->streamcnt[idx] == 0) {
+			ret = *(songad + *streamref);
+			++(*streamref);
+			--(*streamcnt);
+			if (*streamcnt == 0) {
 				// run finished, zero the reference pointer
-				pMus->streamref[idx]=0;
+				*streamref=0;
 			}
 			return ret;
 
 		case 0x0000:
 			// get a byte with increment from the main stream
-			ret = *(pMus->songad + (pMus->streampos[idx]++));
-			--pMus->streamcnt[idx];
+			ret = *(songad + *streampos);
+			++(*streampos);
+			--(*streamcnt);
 			return ret;
 
 		case 0xffff:
 			// get a byte with no increment from the main stream
-			ret = *(pMus->songad + (pMus->streampos[idx]));
-			--pMus->streamcnt[idx];
-			if (pMus->streamcnt[idx] == 0) pMus->streampos[idx]++;	// on the last byte, increment the stream
+			ret = *(songad + *streampos);
+			--(*streamcnt);
+			if (*streamcnt == 0) ++(*streampos);	// on the last byte, increment the stream
 			return ret;
 		}
 	}
 
 	// count is zero, need to get a new command
-	cnt = *(pMus->songad + (pMus->streampos[idx]++));
+	cnt = *(songad + *streampos);
+	++(*streampos);
 	if (cnt == 0) {
 		// song over
 		return 0;
@@ -102,35 +110,43 @@ unsigned char getbyte(struct SPF* pMus, int idx) {
 			// two byte reference - song offset
 			cnt &= 0x3f;		// mask count
 			cnt--;				// account for the byte we will consume below
-			pMus->streamcnt[idx]=cnt;	// save it
-			pMus->streamref[idx]=*(pMus->songad + (pMus->streampos[idx]++))<<8;	// get MSB
-			pMus->streamref[idx]|=*(pMus->songad + (pMus->streampos[idx]++));	// get LSB
-			return *(pMus->songad + (pMus->streamref[idx]++));					// get back-referenced byte
+			*streamcnt=cnt;		// save it
+			*streamref=*(songad + *streampos)<<8;	// get MSB (wrong endianess, so we have to do it manually)
+			++(*streampos);
+			*streamref |= *(songad + *streampos);	// get LSB
+			++(*streampos);
+			ret = *(songad + *streamref);		// get back-referenced byte
+			++(*streamref);
+			return ret;
 
 		case 0x80:
 			// single byte reference - stream offset
 			cnt &= 0x3f;		// mask count
 			cnt--;				// account for the byte we will consume below
-			pMus->streamcnt[idx]=cnt;	// save it
-			pMus->streamref[idx]=*(pMus->songad + (pMus->streampos[idx]++));		// get LSB
-			pMus->streamref[idx]+=pMus->streambase[idx];					// add stream base
-			return *(pMus->songad + (pMus->streamref[idx]++));				// get back referenced byte
+			*streamcnt=cnt;		// save it
+			*streamref=*(songad + *streampos);		// get LSB
+			++(*streampos);
+			*streamref += pMus->streambase[idx];			// add stream base (only use, not cached)
+			ret = *(songad + *streamref);				// get back referenced byte
+			++(*streamref);
+			return ret;
 
 		case 0x40:
 			// this is going to be a single character repeated
 			cnt &= 0x3f;					// mask it
 			cnt--;							// account for the one we are going to take
-			pMus->streamcnt[idx]=cnt;		// save it
-			cnt = *(pMus->songad + (pMus->streampos[idx]));		// get byte - note no increment
-			pMus->streamref[idx]=0xffff;	// flag as a repeated byte
+			*streamcnt=cnt;					// save it
+			cnt = *(songad + *streampos);		// get byte - note no increment
+			*streamref=0xffff;				// flag as a repeated byte
 			return cnt;
 
 		case 0x00:
 			// neither bit set, then it's just a plain run
-			cnt--;			// account for the one we are taking
-			pMus->streamcnt[idx]=cnt;	// save it
-			cnt = *(pMus->songad + (pMus->streampos[idx]++));		// get byte
-			pMus->streamref[idx]=0;		// zero the reference
+			cnt--;				// account for the one we are taking
+			*streamcnt=cnt;		// save it
+			cnt = *(songad + *streampos);		// get byte
+			++(*streampos);
+			*streamref=0;		// zero the reference
 			return cnt;
 	}
 
@@ -357,17 +373,24 @@ void stplay() {
 // and stores the channels being used in the MSB (caller must clear)
 void playone(struct SPF* pMus) {
 	unsigned char voice;
+	// some cache variables for better code
+	unsigned char *songad = pMus->songad;
+	unsigned char *tmcnt, *tmocnt, *tmovr;
 
 	for (voice = 0; voice < 4; voice++) {
 		if (pMus->streampos[8+voice]) {		// test time stream pointer (streams 8-11)
+			tmcnt = &pMus->tmcnt[voice];
+			tmocnt = &pMus->tmocnt[voice];
+			tmovr = &pMus->tmovr[voice];
+
 			playmask |= 0x0100 << voice;	// set the active bit
-			pMus->tmcnt[voice]--;					// count down the voice
-			if ((pMus->tmcnt[voice] == 0) || (pMus->tmcnt[voice] == 0xff)) {	// have to catch wraparound for certain start cases
+			--(*tmcnt);						// count down the voice
+			if ((*tmcnt == 0) || (*tmcnt == 0xff)) {	// have to catch wraparound for certain start cases
 				unsigned char work = 0;
-				if (pMus->tmocnt[voice]) {
+				if (*tmocnt) {
 					// override count active
-					pMus->tmocnt[voice]--;
-					work = pMus->tmovr[voice];			// byte is a special run
+					--(*tmocnt);
+					work = *tmovr;			// byte is a special run
 				} else {
 					work = getbyte(pMus, 8+voice);		// get compressed byte from the timestream
 					if (work == 0) {
@@ -379,23 +402,23 @@ void playone(struct SPF* pMus) {
 						// magic override mapping - counts are minus 1 to account for the byte we use
 						switch (work) {
 						case 0x7a:
-							pMus->tmovr[voice]=0x43;
-							pMus->tmocnt[voice]=1;
+							*tmovr=0x43;
+							*tmocnt=1;
 							work=0x43;
 							break; 
 
 						case 0x7b:
 						case 0x7c:
-							pMus->tmovr[voice]=0x42;
-							pMus->tmocnt[voice]=work-0x7a;
+							*tmovr=0x42;
+							*tmocnt=work-0x7a;
 							work=0x42;
 							break;
 
 						case 0x7d:
 						case 0x7e:
 						case 0x7f:
-							pMus->tmovr[voice]=0x41;
-							pMus->tmocnt[voice]=work-0x7c;
+							*tmovr=0x41;
+							*tmocnt=work-0x7c;
 							work=0x41;
 							break;
 						}
@@ -428,11 +451,11 @@ void playone(struct SPF* pMus) {
 					} else {
 						// tone channel - need to look up in tone table
 						unsigned int note;
-						unsigned int off = *(pMus->songad+2)<<8;
-						off |= *(pMus->songad+3);										// offset to frequency table
+						unsigned int off = *(songad+2)<<8;
+						off |= *(songad+3);												// offset to frequency table
 						off += x<<1;													// index of note
-						note = *(pMus->songad+off);
-						note |= (*(pMus->songad+(off+1)))<<8;							// get note (cmd byte in LSB)
+						note = *(songad+off);
+						note |= (*(songad+(off+1)))<<8;									// get note (cmd byte in LSB)
 						note |= (voice*0x20)+0x80;										// or in the command bits
 						// check if we are allowed to play - sfx or mask bit not set
 						if (
@@ -476,7 +499,7 @@ void playone(struct SPF* pMus) {
 						musicout.vol[voice] = x;
 					}
 				}
-				pMus->tmcnt[voice] = (work & 0x3f);		// save off the delay count (not certain why we don't decrement here like the asm does...)
+				*tmcnt = (work & 0x3f);		// save off the delay count (not certain why we don't decrement here like the asm does...)
 			}
 		}
 	}
