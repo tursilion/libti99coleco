@@ -16,6 +16,7 @@
 // if RAM is tight, we could store these in VDP and just
 // copy the one we are working on back and forth
 struct SPF {
+	unsigned char (*getbyte)(struct SPF*, unsigned char);
 	unsigned int streampos[12], streamref[12], streambase[12];
 	unsigned char streamcnt[12];
 	unsigned char tmcnt[4], tmocnt[4], tmovr[4];
@@ -56,40 +57,17 @@ void restorechans();
 #endif
 
 void playone(struct SPF* pMus);
+unsigned char getbyte_newcmd(struct SPF* pMus, unsigned char idx);
+unsigned char getbyte_count_run(struct SPF* pMus, unsigned char idx);
+unsigned char getbyte_count_inc(struct SPF* pMus, unsigned char idx);
+unsigned char getbyte_count_fixed(struct SPF* pMus, unsigned char idx);
 
 // get a compressed byte from a stream (pointer to struct, stream index 0-11)
-unsigned char getbyte(struct SPF* pMus, int idx) {
-	unsigned char ret, cnt;
+// all the following functions form a mini-state machine to reduce real time testing
+unsigned char getbyte_newcmd(struct SPF* pMus, unsigned char idx) {
+	unsigned char cnt;
 
-	if (pMus->streamcnt[idx] > 0) {
-		// working on a count - streamref tells us what to get
-		switch (pMus->streamref[idx]) {
-		default:
-			// in the middle of a run, just get the next byte
-			ret = *(pMus->songad + (pMus->streamref[idx]++));
-			pMus->streamcnt[idx]--;
-			if (pMus->streamcnt[idx] == 0) {
-				// run finished, zero the reference pointer
-				pMus->streamref[idx]=0;
-			}
-			return ret;
-
-		case 0x0000:
-			// get a byte with increment from the main stream
-			ret = *(pMus->songad + (pMus->streampos[idx]++));
-			--pMus->streamcnt[idx];
-			return ret;
-
-		case 0xffff:
-			// get a byte with no increment from the main stream
-			ret = *(pMus->songad + (pMus->streampos[idx]));
-			--pMus->streamcnt[idx];
-			if (pMus->streamcnt[idx] == 0) pMus->streampos[idx]++;	// on the last byte, increment the stream
-			return ret;
-		}
-	}
-
-	// count is zero, need to get a new command
+	// count is zero, need to get a new command (also returns current byte)
 	cnt = *(pMus->songad + (pMus->streampos[idx]++));
 	if (cnt == 0) {
 		// song over
@@ -100,8 +78,9 @@ unsigned char getbyte(struct SPF* pMus, int idx) {
 	switch (cnt & 0xc0) {
 		case 0xc0:
 			// two byte reference - song offset
+			pMus->getbyte = getbyte_count_run;
 			cnt &= 0x3f;		// mask count
-			cnt--;				// account for the byte we will consume below
+			--cnt;				// account for the byte we will consume below
 			pMus->streamcnt[idx]=cnt;	// save it
 			pMus->streamref[idx]=*(pMus->songad + (pMus->streampos[idx]++))<<8;	// get MSB
 			pMus->streamref[idx]|=*(pMus->songad + (pMus->streampos[idx]++));	// get LSB
@@ -109,15 +88,17 @@ unsigned char getbyte(struct SPF* pMus, int idx) {
 
 		case 0x80:
 			// single byte reference - stream offset
+			pMus->getbyte = getbyte_count_run;
 			cnt &= 0x3f;		// mask count
 			cnt--;				// account for the byte we will consume below
 			pMus->streamcnt[idx]=cnt;	// save it
-			pMus->streamref[idx]=*(pMus->songad + (pMus->streampos[idx]++));		// get LSB
-			pMus->streamref[idx]+=pMus->streambase[idx];					// add stream base
-			return *(pMus->songad + (pMus->streamref[idx]++));				// get back referenced byte
+			pMus->streamref[idx]=*(pMus->songad + (pMus->streampos[idx]++));	// get LSB
+			pMus->streamref[idx]+=pMus->streambase[idx];						// add stream base
+			return *(pMus->songad + (pMus->streamref[idx]++));					// get back referenced byte
 
 		case 0x40:
 			// this is going to be a single character repeated
+			pMus->getbyte = getbyte_count_fixed;
 			cnt &= 0x3f;					// mask it
 			cnt--;							// account for the one we are going to take
 			pMus->streamcnt[idx]=cnt;		// save it
@@ -127,6 +108,7 @@ unsigned char getbyte(struct SPF* pMus, int idx) {
 
 		case 0x00:
 			// neither bit set, then it's just a plain run
+			pMus->getbyte = getbyte_count_inc;
 			cnt--;			// account for the one we are taking
 			pMus->streamcnt[idx]=cnt;	// save it
 			cnt = *(pMus->songad + (pMus->streampos[idx]++));		// get byte
@@ -134,8 +116,50 @@ unsigned char getbyte(struct SPF* pMus, int idx) {
 			return cnt;
 	}
 
-	// should never get here
+	// shouldn't get here
 	return 0;
+}
+
+// several getbyte functions here - depending on the mode
+// reduces the number of decisions per read
+unsigned char getbyte_count_run(struct SPF* pMus, unsigned char idx) {
+	// if (pMus->streamcnt[idx] > 0) && (pMus->streamref[idx] == <default case>)
+	unsigned char ret;
+
+	// in the middle of a run, just get the next byte
+	ret = *(pMus->songad + (pMus->streamref[idx]++));
+	--pMus->streamcnt[idx];
+	if (pMus->streamcnt[idx] == 0) {
+		// run finished, zero the reference pointer
+		pMus->streamref[idx]=0;
+		pMus->getbyte = getbyte_newcmd;
+	}
+	return ret;
+}
+unsigned char getbyte_count_inc(struct SPF* pMus, unsigned char idx) {
+	// if (pMus->streamcnt[idx] > 0) && (pMus->streamref[idx] == 0x0000)
+	unsigned char ret;
+
+	// get a byte with increment from the main stream
+	ret = *(pMus->songad + (pMus->streampos[idx]++));
+	--pMus->streamcnt[idx];
+	if (pMus->streamcnt[idx] == 0) {
+		pMus->getbyte = getbyte_newcmd;
+	}
+	return ret;
+}
+unsigned char getbyte_count_fixed(struct SPF* pMus, unsigned char idx) {
+	// if (pMus->streamcnt[idx] > 0) && (pMus->streamref[idx] == 0xffff)
+	unsigned char ret;
+
+	// get a byte with no increment from the main stream
+	ret = *(pMus->songad + (pMus->streampos[idx]));
+	--pMus->streamcnt[idx];
+	if (pMus->streamcnt[idx] == 0) {
+		++pMus->streampos[idx];	// on the last byte, increment the stream
+		pMus->getbyte = getbyte_newcmd;
+	}
+	return ret;
 }
 
 #ifdef ENABLEFX
@@ -161,6 +185,7 @@ void sfxinit(unsigned char *pMod, unsigned char num, unsigned char pri) {
 	sfxflag = pri;
 
 	// prepare to run
+	sfx.getbyte = getbyte_newcmd;
 	sfx.songad = pMod;
 	pWork = (*pMod)<<8;
 	pWork |= *(pMod+1);
@@ -199,6 +224,7 @@ void stinit(unsigned char *pMod, unsigned char num) {
 #endif
 
 	// prepare to run
+	music.getbyte = getbyte_newcmd;
 	music.songad = (unsigned char*)pMod; 
 	pWork = (*pMod)<<8;
 	pWork |= *(pMod+1);				// get big-endian address offset to pointer table
@@ -369,7 +395,7 @@ void playone(struct SPF* pMus) {
 					pMus->tmocnt[voice]--;
 					work = pMus->tmovr[voice];			// byte is a special run
 				} else {
-					work = getbyte(pMus, 8+voice);		// get compressed byte from the timestream
+					work = pMus->getbyte(pMus, 8+voice);		// get compressed byte from the timestream
 					if (work == 0) {
 						// stream ended, no more work
 						pMus->streampos[8+voice]=0;
@@ -404,7 +430,7 @@ void playone(struct SPF* pMus) {
 				// now we have the current timestream command byte to process
 				if (work&0x80) {
 					// request to load a frequency
-					unsigned char x = getbyte(pMus, voice);
+					unsigned char x = pMus->getbyte(pMus, voice);
 					if (voice == 3) {
 						// noise channel
 						x|=0xe0;
@@ -456,7 +482,7 @@ void playone(struct SPF* pMus) {
 				}
 				if (work & 0x40) {
 					// request to load volume
-					unsigned char x = getbyte(pMus, voice+4);
+					unsigned char x = pMus->getbyte(pMus, voice+4);
 					x |= (voice*0x20)+0x90;		// or in the command bits
 					// check if we are allowed to play - sfx or mask bit not set
 					if (
