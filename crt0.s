@@ -34,6 +34,9 @@
 	.ascii " / / NOT"
 
 start:
+	; clear interrupt flag right off
+	ld hl,#_vdpLimi
+	ld (hl),#0
 	; clear RAM before starting
 	ld hl,#0x7000			; set copy source
 	ld de,#0x7001			; set copy dest

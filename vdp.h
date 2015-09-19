@@ -27,6 +27,13 @@ inline void VDP_SAFE_DELAY() {
 // Actually, Z80 frequency is 3.579545 MHz (MSX) so the math comes to 28.63, roughly 29 T-states.
 // You must include the OUT instruction, so it means we need 18 additional T-states before the next 
 // VRAM access. That's a lot of unused CPU time, but if it is needed, so be it.
+// When I did the math, I got this using OUTI:
+// OUTI is 16 cycles or 4.47uS
+// NOP is 4 cycles or 1.12uS
+// to get to 8uS, we'd need 4 NOPS (although 3 would work 90% of the time... 0.12uS difference! So close! Maybe another instruction?)
+// However, OUTI/OUTD are the slower instructions, the fastest OUT is OUT (p),A, which is 11 cycles (3.073 uS)
+// To get to 8uS there, we do need 5 NOPs (although the last cycle is only off by 0.44uS)
+
 __asm
 	nop
 	nop

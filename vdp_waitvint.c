@@ -4,7 +4,7 @@ unsigned char gSaveIntCnt;	// console interrupt count byte
 
 // returns non-zero if interrupt already fired (ie: we are late)
 unsigned char vdpwaitvint() {
-	int ret = vdpLimi & 0x80;
+	unsigned char ret = vdpLimi & 0x80;
 
 	// wait for a vertical interrupt to occur (enables interrupts - first call may not wait)
 	VDP_INT_ENABLE; 

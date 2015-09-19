@@ -1,5 +1,5 @@
 CC = "c:/program files (x86)/sdcc/bin/sdcc"
-CFLAGS = -mz80 -c "-I../../../include" --std-sdcc99 --vc -DENABLEFX --opt-code-speed
+CFLAGS = -mz80 -c "-I../include" --std-sdcc99 --vc -DENABLEFX --opt-code-speed
 AS = "c:/program files (x86)/sdcc/bin/sdasz80"
 AR = "c:/program files (x86)/sdcc/bin/sdar"
 AFLAGS = -plosgff
@@ -53,7 +53,7 @@ OBJECT_LIST=\
 
 # Recipe to compile the library
 all: library test
-	"c:/work/coleco/tursi/makemegacart/debug/makemegacart.exe" crt0.ihx testib.rom
+	"c:/work/coleco/tursi/makemegacart/release/makemegacart.exe" crt0.ihx testib.rom
 
 library: $(OBJECT_LIST)
 	rm -f testlib.$(EXT) testlib.asm

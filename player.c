@@ -10,7 +10,7 @@
 //#define ENABLEFX
 // NOTE: for the sake of the headers, these need to be defined in your makefile! (ex: -DRUN30HZ)
 
-#include <string.h>
+#include <sdcc_string.h>
 #include "player.h"
 
 // music and sound effect (122 bytes each)

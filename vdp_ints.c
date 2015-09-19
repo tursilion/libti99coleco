@@ -27,24 +27,27 @@ volatile unsigned char VDP_INT_COUNTER = 0;
 // May be called from true NMI or from VDP_INTERRUPT_ENABLE, depending on
 // the flag setting when the true NMI fires.
 void my_nmi() {
-	if ((vdpLimi & 1) == 0) return;	// not enabled - we probably raced, so don't run twice.
-
 	// I think we're okay from races. There are only two conditions this is called:
+	//
 	// VDP_INTERRUPT_ENABLE - detects that vdpLimi&0x80 was set by the interrupt code.
-	// nmi - detects that vdpLimi&0x01 is valid, and calls directly
-	// The above line may be paranoia... I think the edge cases are covered. Need to
-	// think them through here when less tired.
-	
-	// there's still a race here - if we read vdpLimi and it's still '1' above, but NMI before we
-	// set vdpLimi to 0 before, we'll trigger twice.
+	//						  Calls this code. But the interrupt line is still active,
+	//						  so we can't retrigger until it's cleared by the VDPST read
+	//						  below. At that time the vdpLimi is zeroed, and so we can't loop.
+	//
+	// nmi -				  detects that vdpLimi&0x01 is valid, and calls directly.
+	//						  Again, the interrupt line is still active.
+	//
+	// I think the edge cases are covered. Except if the user is manually reading VDPST,
+	// then the state of vdpLimi could be out of sync with the real interrupt line, and cause
+	// a double call. User apps should only read the mirror variable. Should I enforce that?
 
-	vdpLimi = 0;				// clear the interrupt flags
-
-	VDP_STATUS_MIRROR = VDPST;	// release the VDP
+	vdpLimi = 0;				// clear the interrupt flags - do this before clearing the VDP
+	VDP_STATUS_MIRROR = VDPST;	// release the VDP - we could instantly trigger again, but the vdpLimi is zeroed, so no loop
 	VDP_INT_COUNTER++;			// count up the frames
 
 	// the TI is running with ints off, so it won't retrigger in the
-	// user code, even if it's slow. Our current process won't either.
+	// user code, even if it's slow. Our current process won't either because
+	// the vdpLimi is set to 0.
 	if (0 != userint) userint();
 
 	// the TI interrupt would normally exit with the ints disabled
@@ -74,6 +77,7 @@ void vdpinit() {
 	SOUND = 0xdf;
 	SOUND = 0xff;
 
+	// interrupts off
 	vdpLimi = 0;
 
 	// before touching VDP, a brief delay. This gives time for the F18A to finish
