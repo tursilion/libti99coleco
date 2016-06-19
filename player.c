@@ -174,10 +174,11 @@ unsigned char getbyte_count_fixed(struct SPF* pMus, struct stream *str) {
 	return ret;
 }
 
-void initstream(struct stream *str, unsigned char *pos) {
+void initstream(struct stream *str, unsigned char *pos, unsigned char *songad) {
+	unsigned char *realPtr = (((*pos)<<8) | (*(pos+1))) + songad;
 	str->getbyte = getbyte_newcmd;
-	str->streampos = pos;
-	str->streambase = pos;
+	str->streampos = realPtr;
+	str->streambase = realPtr;
 	str->streamref = 0;
 	str->streamcnt = 0;
 }
@@ -218,16 +219,16 @@ void sfxinit(unsigned char *pMod, unsigned char num, unsigned char pri) {
 
 	// init the playback registers
 	for (idx = 0; idx < 4; idx++) {
-		initstream(&sfx.voicestr[idx], pWork);	// stream address
-		pWork+=2;																// next stream
+		initstream(&sfx.voicestr[idx], pWork, sfx.songad);	// stream address
+		pWork+=2;											// next stream
 	}
 	for (idx = 0; idx < 4; idx++) {
-		initstream(&sfx.volstr[idx], pWork);	// stream address
-		pWork+=2;															// next stream
+		initstream(&sfx.volstr[idx], pWork, sfx.songad);	// stream address
+		pWork+=2;											// next stream
 	}
 	for (idx = 0; idx < 4; idx++) {
-		initstream(&sfx.timestr[idx], pWork);	// stream address
-		pWork+=2;															// next stream
+		initstream(&sfx.timestr[idx], pWork, sfx.songad);	// stream address
+		pWork+=2;											// next stream
 	}
 
 	lock = 0;
@@ -255,16 +256,16 @@ void stinit(unsigned char *pMod, unsigned char num) {
 
 	// init the playback registers
 	for (idx = 0; idx < 4; idx++) {
-		initstream(&music.voicestr[idx], pWork);	// stream address
-		pWork+=2;																	// next stream
+		initstream(&music.voicestr[idx], pWork, music.songad);	// stream address
+		pWork+=2;												// next stream
 	}
 	for (idx = 0; idx < 4; idx++) {
-		initstream(&music.volstr[idx], pWork);	// stream address
-		pWork+=2;																// next stream
+		initstream(&music.volstr[idx], pWork, music.songad);	// stream address
+		pWork+=2;												// next stream
 	}
 	for (idx = 0; idx < 4; idx++) {
-		initstream(&music.timestr[idx], pWork);// stream address
-		pWork+=2;																// next stream
+		initstream(&music.timestr[idx], pWork, music.songad);	// stream address
+		pWork+=2;												// next stream
 	}
 	for (idx=0; idx<4; idx++) {
 		music.voc[idx].tmcnt = 0;
