@@ -18,7 +18,7 @@
 // copy the one we are working on back and forth
 struct SPF;		// forward reference
 struct stream {
-	unsigned char (*getbyte)(struct SPF*, struct stream *);
+	unsigned char (*getbyte)(struct stream *);
 	unsigned char *streampos, *streamref, *streambase;
 	unsigned char streamcnt;
 };
@@ -43,6 +43,10 @@ struct SPF {
 // CPU can only do one thing at a time, we don't
 // need true atomic locking, the flag is enough
 volatile unsigned char lock=0;
+
+// This provides a global reference to the current
+// song address - set only when playOne is called.
+unsigned char *g_songad;
 
 // remembers the audio settings on the music track
 // can be read for feedback. Do not modify, used to
@@ -69,16 +73,38 @@ void restorechans();
 
 void playone(struct SPF* pMus);
 
-unsigned char getbyte_newcmd(struct SPF* pMus, struct stream *str);
-unsigned char getbyte_count_run(struct SPF* pMus, struct stream *str);
-unsigned char getbyte_count_inc(struct SPF* pMus, struct stream *str);
-unsigned char getbyte_count_fixed(struct SPF* pMus, struct stream *str);
+unsigned char getbyte_newcmd(struct stream *str);
+unsigned char getbyte_count_run(struct stream *str);
+unsigned char getbyte_count_inc(struct stream *str);
+unsigned char getbyte_count_fixed(struct stream *str);
+
+// debug code
+//#define COUNT_BYTE_FUNCTIONS
+#ifdef COUNT_BYTE_FUNCTIONS
+unsigned int cnt_newcmd = 0;
+unsigned int cnt_run = 0;
+unsigned int cnt_fixed = 0;
+unsigned int cnt_inc = 0;
+
+void getcnts(unsigned int *i1, unsigned int *i2, unsigned int *i3, unsigned int *i4) {
+	*i1 = cnt_newcmd;
+	*i2 = cnt_run;
+	*i3 = cnt_fixed;
+	*i4 = cnt_inc;
+}
+
+#endif
 
 // get a compressed byte from a stream (pointer to struct, stream index 0-11)
 // all the following functions form a mini-state machine to reduce real time testing
-unsigned char getbyte_newcmd(struct SPF* pMus, struct stream *str) {
+// This function expects that g_songad is set correctly!
+unsigned char getbyte_newcmd(struct stream *str) {
 	unsigned char cnt;
 	unsigned char *p;
+
+#ifdef COUNT_BYTE_FUNCTIONS
+	++cnt_newcmd;
+#endif
 
 	// count is zero, need to get a new command (also returns current byte)
 	cnt = *(str->streampos++);
@@ -97,7 +123,7 @@ unsigned char getbyte_newcmd(struct SPF* pMus, struct stream *str) {
 				str->streamcnt=cnt;	// save it
 			}
 			p = str->streampos;
-			str->streamref = (((*p)<<8) | (*(p+1))) + pMus->songad;
+			str->streamref = (((*p)<<8) | (*(p+1))) + g_songad;
 			str->streampos += 2;
 			return *(str->streamref++);			// get back-referenced byte
 
@@ -135,10 +161,13 @@ unsigned char getbyte_newcmd(struct SPF* pMus, struct stream *str) {
 
 // several getbyte functions here - depending on the mode
 // reduces the number of decisions per read
-unsigned char getbyte_count_run(struct SPF* pMus, struct stream *str) {
+unsigned char getbyte_count_run(struct stream *str) {
 	// if (pMus->str[idx].streamcnt > 0) && (pMus->str[idx].streamref == <default case>)
 	unsigned char ret;
-	(pMus);
+
+#ifdef COUNT_BYTE_FUNCTIONS
+	++cnt_run;
+#endif
 
 	// in the middle of a run, just get the next byte
 	ret = *(str->streamref++);
@@ -148,10 +177,13 @@ unsigned char getbyte_count_run(struct SPF* pMus, struct stream *str) {
 	}
 	return ret;
 }
-unsigned char getbyte_count_inc(struct SPF* pMus, struct stream *str) {
+unsigned char getbyte_count_inc(struct stream *str) {
 	// if (pMus->str[idx].streamcnt > 0) && (pMus->str[idx].streamref == 0x0000)
 	unsigned char ret;
-	(pMus);
+
+#ifdef COUNT_BYTE_FUNCTIONS
+	++cnt_inc;
+#endif
 
 	// get a byte with increment from the main stream
 	ret = *(str->streampos++);
@@ -160,10 +192,13 @@ unsigned char getbyte_count_inc(struct SPF* pMus, struct stream *str) {
 	}
 	return ret;
 }
-unsigned char getbyte_count_fixed(struct SPF* pMus, struct stream *str) {
+unsigned char getbyte_count_fixed(struct stream *str) {
 	// if (pMus->str[idx].streamcnt > 0) && (pMus->str[idx].streamref == 0xffff)
 	unsigned char ret;
-	(pMus);
+
+#ifdef COUNT_BYTE_FUNCTIONS
+	++cnt_fixed;
+#endif
 
 	// get a byte with no increment from the main stream
 	ret = *(str->streampos);
@@ -219,16 +254,16 @@ void sfxinit(unsigned char *pMod, unsigned char num, unsigned char pri) {
 
 	// init the playback registers
 	for (idx = 0; idx < 4; idx++) {
-		initstream(&sfx.voicestr[idx], pWork, sfx.songad);	// stream address
-		pWork+=2;											// next stream
+		initstream(&sfx.voicestr[idx], pWork, pMod);	// stream address
+		pWork+=2;										// next stream
 	}
 	for (idx = 0; idx < 4; idx++) {
-		initstream(&sfx.volstr[idx], pWork, sfx.songad);	// stream address
-		pWork+=2;											// next stream
+		initstream(&sfx.volstr[idx], pWork, pMod);		// stream address
+		pWork+=2;										// next stream
 	}
 	for (idx = 0; idx < 4; idx++) {
-		initstream(&sfx.timestr[idx], pWork, sfx.songad);	// stream address
-		pWork+=2;											// next stream
+		initstream(&sfx.timestr[idx], pWork, pMod);		// stream address
+		pWork+=2;										// next stream
 	}
 
 	lock = 0;
@@ -256,16 +291,16 @@ void stinit(unsigned char *pMod, unsigned char num) {
 
 	// init the playback registers
 	for (idx = 0; idx < 4; idx++) {
-		initstream(&music.voicestr[idx], pWork, music.songad);	// stream address
-		pWork+=2;												// next stream
+		initstream(&music.voicestr[idx], pWork, pMod);	// stream address
+		pWork+=2;										// next stream
 	}
 	for (idx = 0; idx < 4; idx++) {
-		initstream(&music.volstr[idx], pWork, music.songad);	// stream address
-		pWork+=2;												// next stream
+		initstream(&music.volstr[idx], pWork, pMod);	// stream address
+		pWork+=2;										// next stream
 	}
 	for (idx = 0; idx < 4; idx++) {
-		initstream(&music.timestr[idx], pWork, music.songad);	// stream address
-		pWork+=2;												// next stream
+		initstream(&music.timestr[idx], pWork, pMod);	// stream address
+		pWork+=2;										// next stream
 	}
 	for (idx=0; idx<4; idx++) {
 		music.voc[idx].tmcnt = 0;
@@ -391,6 +426,11 @@ void playone(struct SPF* pMus) {
 	char voice;
 	struct voice *voc;
 
+	// this is used fairly often. As a bonus making it global
+	// means we no longer need to pass it to the getbyte functions,
+	// only newcmd of which needs it (and in only one case)
+	g_songad = pMus->songad;
+
 	for (voice = 3; voice >= 0; --voice) {
 		voc = &pMus->voc[voice];
 		
@@ -404,7 +444,7 @@ void playone(struct SPF* pMus) {
 					voc->tmocnt--;
 					work = voc->tmovr;			// byte is a special run
 				} else {
-					work = pMus->timestr[voice].getbyte(pMus, &pMus->timestr[voice]);		// get compressed byte from the timestream
+					work = pMus->timestr[voice].getbyte(&pMus->timestr[voice]);		// get compressed byte from the timestream
 					if (work == 0) {
 						// stream ended, no more work
 						pMus->timestr[voice].streampos=0;
@@ -439,7 +479,7 @@ void playone(struct SPF* pMus) {
 				// now we have the current timestream command byte to process
 				if (work&0x80) {
 					// request to load a frequency
-					unsigned char x = pMus->voicestr[voice].getbyte(pMus, &pMus->voicestr[voice]);
+					unsigned char x = pMus->voicestr[voice].getbyte(&pMus->voicestr[voice]);
 					if (voice == 3) {
 						// noise channel
 						x|=0xe0;
@@ -464,10 +504,10 @@ void playone(struct SPF* pMus) {
 						// tone channel - need to look up in tone table
 						unsigned int note;
 						// pointer into frequency table
-						unsigned char *tone = pMus->songad + (*(pMus->songad+2)<<8) + (*(pMus->songad+3));
-						tone += x<<1;																// index of note
+						unsigned char *tone = g_songad + (*(g_songad+2)<<8) + (*(g_songad+3));
+						tone += x<<1;												// index of note
 						note = *tone;
-						note |= (*(tone+1))<<8;											// get note (cmd byte in LSB)
+						note |= (*(tone+1))<<8;										// get note (cmd byte in LSB)
 						note |= (voice*0x20)+0x80;									// or in the command bits
 						// check if we are allowed to play - sfx or mask bit not set
 						if (
@@ -491,7 +531,7 @@ void playone(struct SPF* pMus) {
 				}
 				if (work & 0x40) {
 					// request to load volume
-					unsigned char x = pMus->volstr[voice].getbyte(pMus, &pMus->volstr[voice]);
+					unsigned char x = pMus->volstr[voice].getbyte(&pMus->volstr[voice]);
 					x |= (voice*0x20)+0x90;		// or in the command bits
 					// check if we are allowed to play - sfx or mask bit not set
 					if (
@@ -511,7 +551,7 @@ void playone(struct SPF* pMus) {
 						musicout.vol[voice] = x;
 					}
 				}
-				voc->tmcnt = (work & 0x3f);		// save off the delay count (not certain why we don't decrement here like the asm does...)
+				voc->tmcnt = (work & 0x3f);		// save off the delay count (not certain why we don't decrement here like the TI asm does...)
 			}
 		}
 	}
