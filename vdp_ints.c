@@ -18,7 +18,7 @@ volatile unsigned char VDP_STATUS_MIRROR = 0;
 // (This must be defined in the crt0.s)
 //volatile unsigned char vdpLimi = 0;		// NO ints by default!
 
-// address of user interupt function
+// address of user interrupt function
 static void (*userint)() = 0;
 
 // interrupt counter
