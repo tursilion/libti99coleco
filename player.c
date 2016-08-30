@@ -13,7 +13,7 @@
 #include <sdcc_string.h>
 #include "player.h"
 
-// music and sound effect (122 bytes each)
+// music and sound effect (138 bytes each)
 // if RAM is tight, we could store these in VDP and just
 // copy the one we are working on back and forth
 struct SPF;		// forward reference
@@ -241,8 +241,6 @@ void sfxinit(unsigned char *pMod, unsigned char num, unsigned char pri) {
 	sfxflag = pri;
 
 	// prepare to run
-	memset(&sfx, 0, sizeof(sfx));
-
 	sfx.songad = pMod;
 
 	// get the address of the stream table for this song
@@ -252,10 +250,12 @@ void sfxinit(unsigned char *pMod, unsigned char num, unsigned char pri) {
 	// zero only the sfx part of the playmask
 	playmask &= 0xff00;
 
-	// init the playback registers
+	// init the playback registers - just piggyback the voc init on the first one
 	for (idx = 0; idx < 4; idx++) {
 		initstream(&sfx.voicestr[idx], pWork, pMod);	// stream address
 		pWork+=2;										// next stream
+		
+		sfx.voc[idx].tmocnt = 0;
 	}
 	for (idx = 0; idx < 4; idx++) {
 		initstream(&sfx.volstr[idx], pWork, pMod);		// stream address
@@ -265,7 +265,7 @@ void sfxinit(unsigned char *pMod, unsigned char num, unsigned char pri) {
 		initstream(&sfx.timestr[idx], pWork, pMod);		// stream address
 		pWork+=2;										// next stream
 	}
-
+	
 	lock = 0;
 }
 #endif
@@ -281,8 +281,6 @@ void stinit(unsigned char *pMod, unsigned char num) {
 #endif
 
 	// prepare to run
-	memset(&music, 0, sizeof(music));
-
 	music.songad = (unsigned char*)pMod; 
 	
 	// get the address of the stream table for this song
@@ -293,6 +291,8 @@ void stinit(unsigned char *pMod, unsigned char num) {
 	for (idx = 0; idx < 4; idx++) {
 		initstream(&music.voicestr[idx], pWork, pMod);	// stream address
 		pWork+=2;										// next stream
+		
+		music.voc[idx].tmocnt = 0;
 	}
 	for (idx = 0; idx < 4; idx++) {
 		initstream(&music.volstr[idx], pWork, pMod);	// stream address
@@ -301,11 +301,6 @@ void stinit(unsigned char *pMod, unsigned char num) {
 	for (idx = 0; idx < 4; idx++) {
 		initstream(&music.timestr[idx], pWork, pMod);	// stream address
 		pWork+=2;										// next stream
-	}
-	for (idx=0; idx<4; idx++) {
-		music.voc[idx].tmcnt = 0;
-		music.voc[idx].tmocnt = 0;
-		music.voc[idx].tmovr = 0;
 	}
 
 	// put sane values in the user feedback registers (not done for sfx)
