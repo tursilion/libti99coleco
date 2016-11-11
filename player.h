@@ -15,10 +15,11 @@ struct OUTPUT {
 };
 extern struct OUTPUT musicout;
 
-// playmask indicates by bits which channels are active
-// the MSB is music, the LSB is sfx. 0xff indicates not playing,
-// otherwise the four least significant bits indicate active channels.z
-extern unsigned int playmask;
+// bitmask for channels to play/being played (used to be a single 16-bit packed value)
+// playmask sets bits to indicate channels that the music should not play over (for SFX mostly)
+extern unsigned char playmask;
+// musicmask has set bits just to indicate which channels are still playing
+extern unsigned char musicmask;
 
 #define pVoice (&musicout.tone[0])
 #define pVol   (&musicout.vol[0])

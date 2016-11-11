@@ -32,6 +32,7 @@ struct SPF {
 	struct stream timestr[4];
 	struct voice voc[4];
 	unsigned char *songad;
+	unsigned char *freqad;
 } music
 #ifdef ENABLEFX
 	,sfx
@@ -56,9 +57,11 @@ struct OUTPUT musicout;
 // audio port
 volatile __sfr __at 0xff SOUND;
 
-// bitmask for channels to play/being played
-// MSB is music, LSB is sfx
-unsigned int playmask=0;
+// bitmask for channels to play/being played (used to be a single 16-bit packed value)
+// playmask sets bits to indicate channels that the music should not play over (for SFX mostly)
+unsigned char playmask;
+// musicmask has set bits just to indicate which channels are still playing
+unsigned char musicmask;
 
 #ifdef RUN30HZ
 // frame flag for 30hz
@@ -243,12 +246,14 @@ void sfxinit(unsigned char *pMod, unsigned char num, unsigned char pri) {
 	// prepare to run
 	sfx.songad = pMod;
 
+	// address of the frequency table (so we don't need to calculate it every frame, repeatedly)
+	sfx.freqad = pMod + (*(pMod+2)<<8) + (*(pMod+3));
+
 	// get the address of the stream table for this song
 	pWork = pMod + (((*pMod)<<8)|(*(pMod+1)));
 	pWork += num*24;		// 24 bytes per pointer table, add to offset
 
-	// zero only the sfx part of the playmask
-	playmask &= 0xff00;
+	// for SFX, leave playmask alone
 
 	// init the playback registers - just piggyback the voc init on the first one
 	for (idx = 0; idx < 4; idx++) {
@@ -256,6 +261,7 @@ void sfxinit(unsigned char *pMod, unsigned char num, unsigned char pri) {
 		pWork+=2;										// next stream
 		
 		sfx.voc[idx].tmocnt = 0;
+		sfx.voc[idx].tmcnt = 1;							// so it triggers zero on first frame
 	}
 	for (idx = 0; idx < 4; idx++) {
 		initstream(&sfx.volstr[idx], pWork, pMod);		// stream address
@@ -281,7 +287,10 @@ void stinit(unsigned char *pMod, unsigned char num) {
 #endif
 
 	// prepare to run
-	music.songad = (unsigned char*)pMod; 
+	music.songad = pMod; 
+
+	// address of the frequency table (so we don't need to calculate it every frame, repeatedly)
+	music.freqad = pMod + (*(pMod+2)<<8) + (*(pMod+3));
 	
 	// get the address of the stream table for this song
 	pWork = pMod + (((*pMod)<<8)|(*(pMod+1)));
@@ -293,6 +302,7 @@ void stinit(unsigned char *pMod, unsigned char num) {
 		pWork+=2;										// next stream
 		
 		music.voc[idx].tmocnt = 0;
+		music.voc[idx].tmcnt = 1;						// so it triggers zero on first frame
 	}
 	for (idx = 0; idx < 4; idx++) {
 		initstream(&music.volstr[idx], pWork, pMod);	// stream address
@@ -304,7 +314,10 @@ void stinit(unsigned char *pMod, unsigned char num) {
 	}
 
 	// put sane values in the user feedback registers (not done for sfx)
-	playmask |= 0xff00;		// set music playing (will be overwritten with real value on first loop)
+	// note that setting playmask here may cause a glitch on sound effects already playing
+	// also, if you need to externally control playmask, you probably want to remove this line ;)
+	playmask = 0x00;		// no muted channels
+	musicmask = 0xff;		// set music playing (will be overwritten with real value on first loop)
 
 	for (idx=0; idx<4; idx++) {
 		musicout.vol[idx]=0x9f + (idx*0x20);
@@ -327,7 +340,7 @@ void ststop() {
 		musicout.tone[idx] = 1;		// highest frequency
 	}
 
-	playmask &= 0x00ff;		// music not playing
+	musicmask = 0x00;		// music not playing
 
 	lock = 0;
 }
@@ -343,8 +356,7 @@ void sfxstop() {
 	}
 
 	memset(&sfx, 0, sizeof(sfx));
-
-	playmask &= 0xff00;		// sfx not playing
+	playmask = 0x00;		// no SFX muted channels
 
 	lock = 0;
 }
@@ -390,18 +402,37 @@ void stplay() {
 #endif
 #ifdef ENABLEFX
 		// process sound effects
-		// move the music data to the least significant byte temporary to store it
-		// clear the MSB so the SFX processing can store its data there
-		playmask = (playmask>>8);
-		// play sfx
-		playone(&sfx);
-		// swap the playmask back to normal
-		playmask = (playmask>>8) | (playmask<<8);
-		if (((playmask&0xff) == 0) && (sfxflag)) {
-			// SFX over
-			sfxflag = 0;
-			restorechans();
+
+		if (sfxflag) {
+			// we'll overwrite musicmask as well, so remember that
+#ifdef RUN30HZ
+			// we only really need this for 30hz mode...
+			unsigned char oldmask = musicmask;
+#endif
+
+			// clear the playmask, we're about to reset it
+			playmask = 0;
+			musicmask = 0;
+
+			// play sfx - will store its bits in the musicmask
+			playone(&sfx);
+
+			// copy it over and restore the musicmask
+			playmask = musicmask;
+
+#ifdef RUN30HZ
+			// don't need to restore in 60hz mode cause we're about to update it anyway
+			musicmask = oldmask;
+#endif
+
+			// check if sfx was finished
+			if (playmask == 0) {
+				// SFX over
+				sfxflag = 0;
+				restorechans();
+			}
 		}
+
 #endif
 #ifdef RUN30HZ
 		// if not 30hz, also process the music
@@ -410,16 +441,21 @@ void stplay() {
 	}
 
 	// if not SFX, do music
-	playmask &= 0x00ff;		// clear music bits
+	musicmask = 0;			// clear the mask so we can update it (playmask has our channel mutes)
 	playone(&music);		// play music
 }
 
 // process music (struct to use is passed in)
-// handles muting channels using the LSB of playmask,
-// and stores the channels being used in the MSB (caller must clear)
+// handles muting channels using playmask,
+// and stores the channels being used in musicmask
 void playone(struct SPF* pMus) {
 	char voice;
 	struct voice *voc;
+	unsigned char isSfx = 0;
+
+	if (pMus==&sfx) {
+		isSfx = 1;
+	}
 
 	// this is used fairly often. As a bonus making it global
 	// means we no longer need to pass it to the getbyte functions,
@@ -430,9 +466,9 @@ void playone(struct SPF* pMus) {
 		voc = &pMus->voc[voice];
 		
 		if (pMus->timestr[voice].streampos) {		// test time stream pointer
-			playmask |= 0x0100 << voice;		// set the active bit
-			--voc->tmcnt;			// count down the voice
-			if ((voc->tmcnt == 0) || (voc->tmcnt == 0xff)) {	// have to catch wraparound for certain start cases
+			musicmask |= 0x01 << voice;				// set the active bit
+			--voc->tmcnt;							// count down the voice
+			if (voc->tmcnt == 0) {
 				unsigned char work = 0;
 				if (voc->tmocnt) {
 					// override count active
@@ -481,7 +517,7 @@ void playone(struct SPF* pMus) {
 						// check if we are allowed to play - sfx or mask bit not set
 						if (
 #ifdef ENABLEFX
-							(pMus==&sfx) || 
+							(isSfx) || 
 #endif
 							((playmask&(1<<voice))==0)
 							) {
@@ -489,7 +525,7 @@ void playone(struct SPF* pMus) {
 						}
 #ifdef ENABLEFX
 						// if not sfx, save it
-						if (pMus != &sfx) {
+						if (!isSfx) {
 #else
 						{
 #endif
@@ -499,7 +535,7 @@ void playone(struct SPF* pMus) {
 						// tone channel - need to look up in tone table
 						unsigned int note;
 						// pointer into frequency table
-						unsigned char *tone = g_songad + (*(g_songad+2)<<8) + (*(g_songad+3));
+						unsigned char *tone = pMus->freqad;
 						tone += x<<1;												// index of note
 						note = *tone;
 						note |= (*(tone+1))<<8;										// get note (cmd byte in LSB)
@@ -507,7 +543,7 @@ void playone(struct SPF* pMus) {
 						// check if we are allowed to play - sfx or mask bit not set
 						if (
 #ifdef ENABLEFX
-							(pMus==&sfx) || 
+							(isSfx) || 
 #endif
 							((playmask&(1<<voice))==0)
 							) {
@@ -516,7 +552,7 @@ void playone(struct SPF* pMus) {
 						}
 #ifdef ENABLEFX
 						// if not sfx, save it
-						if (pMus != &sfx) {
+						if (!isSfx) {
 #else
 						{
 #endif
@@ -531,7 +567,7 @@ void playone(struct SPF* pMus) {
 					// check if we are allowed to play - sfx or mask bit not set
 					if (
 #ifdef ENABLEFX
-						(pMus==&sfx) || 
+						(isSfx) || 
 #endif
 						((playmask&(1<<voice))==0)
 						) {
@@ -539,7 +575,7 @@ void playone(struct SPF* pMus) {
 					}
 					// if not sfx, save it
 #ifdef ENABLEFX
-					if (pMus != &sfx) {
+					if (!isSfx) {
 #else
 					{
 #endif
@@ -547,6 +583,7 @@ void playone(struct SPF* pMus) {
 					}
 				}
 				voc->tmcnt = (work & 0x3f);		// save off the delay count (not certain why we don't decrement here like the TI asm does...)
+				if (voc->tmcnt == 0) ++voc->tmcnt;	// prevent init to zero to save a test
 			}
 		}
 	}
