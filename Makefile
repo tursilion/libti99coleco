@@ -1,8 +1,9 @@
-CC = "c:/program files (x86)/sdcc/bin/sdcc"
+CC = "c:/program files/sdcc/bin/sdcc"
 CFLAGS = -mz80 -c "-I../include" --std-sdcc99 --vc -DENABLEFX --opt-code-speed
-AS = "c:/program files (x86)/sdcc/bin/sdasz80"
-AR = "c:/program files (x86)/sdcc/bin/sdar"
+AS = "c:/program files/sdcc/bin/sdasz80"
+AR = "c:/program files/sdcc/bin/sdcclib"
 AFLAGS = -plosgff
+RM = del /F
 # might need to use o for older SDCC, rel for newer
 EXT=rel
 
@@ -18,6 +19,8 @@ OBJECT_LIST=\
   joystfast.$(EXT)		\
   player.$(EXT)			\
   stcount.$(EXT)			\
+  str_int2str.$(EXT)	\
+  str_uint2str.$(EXT)	\
   vdp_char.$(EXT)		\
   vdp_charset.$(EXT)		\
   vdp_charsetlc.$(EXT)	\
@@ -32,6 +35,8 @@ OBJECT_LIST=\
   vdp_memcpy.$(EXT)		\
   vdp_memread.$(EXT)		\
   vdp_memset.$(EXT)		\
+  vdp_putchar.$(EXT)	\
+  vdp_printf.$(EXT)		\
   vdp_putstring.$(EXT)	\
   vdp_rawmemcpy.$(EXT)	\
   vdp_rawmemset.$(EXT)	\
@@ -53,18 +58,18 @@ OBJECT_LIST=\
 
 # Recipe to compile the library
 all: library test
-	"c:/work/coleco/tursi/makemegacart/release/makemegacart.exe" crt0.ihx testib.rom
+	"d:/work/coleco/tursi/makemegacart/release/makemegacart.exe" crt0.ihx testib.rom
 
 library: $(OBJECT_LIST)
-	rm -f testlib.$(EXT) testlib.asm
-	$(AR) -rc $(NAME) *.$(EXT)
+	$(RM) testlib.$(EXT) testlib.asm
+	$(AR) -r $(NAME) $(OBJECT_LIST)
 	
 test: library testlib.$(EXT) crt0.$(EXT)
 	$(CC) -mz80 --no-std-crt0 --code-loc 0x8100 --data-loc 0x7000 -l./libti99.a "./crt0.$(EXT)" testlib.$(EXT) 
 
 # Recipe to clean all compiled objects
 .phony clean:
-	rm -f *.rel *.map *.lst *.lnk *.sym *.asm *~ *.o *.obj *.ihx *.sprite.* *.rom *.rel *.a *.lib
+	$(RM) *.rel *.map *.lst *.lnk *.sym *.asm *~ *.o *.obj *.ihx *.sprite.* *.rom *.rel *.a *.lib
 
 # Recipe to compile all C files
 %.rel: %.c

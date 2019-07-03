@@ -18,6 +18,7 @@ static volatile __sfr __at 0xff port1;
 static volatile __sfr __at 0x80 port2;
 static volatile __sfr __at 0xc0 port3;
 
+// double check rawhide docs, but I think this value is unimportant...
 #define SELECT 0x2a
 
 void joystfast(unsigned char unit) {

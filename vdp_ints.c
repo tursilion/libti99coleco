@@ -27,7 +27,7 @@ volatile unsigned char VDP_INT_COUNTER = 0;
 // May be called from true NMI or from VDP_INTERRUPT_ENABLE, depending on
 // the flag setting when the true NMI fires.
 void my_nmi() {
-	// I think we're okay from races. There are only two conditions this is called:
+	// I think we're okay from races. There are only three conditions this is called:
 	//
 	// VDP_INTERRUPT_ENABLE - detects that vdpLimi&0x80 was set by the interrupt code.
 	//						  Calls this code. But the interrupt line is still active,
@@ -36,6 +36,10 @@ void my_nmi() {
 	//
 	// nmi -				  detects that vdpLimi&0x01 is valid, and calls directly.
 	//						  Again, the interrupt line is still active.
+	//
+	// maskable int (spinner)-detects that vdpLimi&0x80 was set by the interrupt code.
+	//                        this one might be a little bit racey... still need
+	//                        to think it all the way through...                        
 	//
 	// I think the edge cases are covered. Except if the user is manually reading VDPST,
 	// then the state of vdpLimi could be out of sync with the real interrupt line, and cause

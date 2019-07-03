@@ -125,14 +125,16 @@ extern volatile unsigned char VDP_STATUS_MIRROR;
 extern volatile unsigned char vdpLimi;
 #define VDP_WAIT_VBLANK_CRU	  while ((vdpLimi&0x80) == 0) { }
 
+#define VDP_CLEAR_VBLANK { vdpLimi = 0; VDP_STATUS_MIRROR = VDPST; }
+
 // we enable interrupts via a mask byte, as Coleco ints are NMI
 // Note that the enable therefore needs to check a flag!
 // Note that on the TI interrupts DISABLED is the default state
 #define VDP_INT_ENABLE			{ __asm__("\tpush hl\n\tld hl,#_vdpLimi\n\tset 0,(hl)\n\tpop hl"); if (vdpLimi&0x80) my_nmi(); }
 #define VDP_INT_DISABLE			{ __asm__("\tpush hl\n\tld hl,#_vdpLimi\n\tres 0,(hl)\n\tpop hl"); }
-#define VDP_INT_POLL	\
+#define VDP_INT_POLL {	\
 	VDP_INT_ENABLE;		\
-	VDP_INT_DISABLE;
+	VDP_INT_DISABLE; }
 
 //*********************
 // Register settings
@@ -263,6 +265,21 @@ void vdpscreenchar(int pAddr, unsigned char ch);
 // Interrupts are disabled upon exit.
 // returns non-zero if the interrupt fired before entry (ie: we are late)
 unsigned char vdpwaitvint();
+
+// vdpputchar - writes a single character with limited formatting to the bottom of the screen
+// Inputs: character to emit
+// Returns: character input
+// All characters are emitted except \r and \n which is handled for scrn_scroll and next line.
+// It works in both 32x24 and 40x24 modes. Tracking of the cursor is thus 
+// automatic in this function, and it pulls in scrn_scroll.
+int vdpputchar(int x);
+
+// vdpprintf - writes a string with limited formatting. Only supports a very small subset
+// of formatting at the moment. Supports width (for most fields), s, u, i, d, c and X
+// (X is byte only). This function will call in putchar().
+// Inputs: format string, and varable argument list
+// Returns: always returns 0
+int vdpprintf(char *str, ...);
 
 // raw_vdpmemset - sets bytes at the current VDP address
 void raw_vdpmemset(unsigned char ch, int cnt);
