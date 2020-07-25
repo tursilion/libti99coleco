@@ -33,7 +33,6 @@ inline void VDP_SAFE_DELAY() {
 // to get to 8uS, we'd need 4 NOPS (although 3 would work 90% of the time... 0.12uS difference! So close! Maybe another instruction?)
 // However, OUTI/OUTD are the slower instructions, the fastest OUT is OUT (p),A, which is 11 cycles (3.073 uS)
 // To get to 8uS there, we do need 5 NOPs (although the last cycle is only off by 0.44uS)
-
 __asm
 	nop
 	nop
@@ -208,7 +207,8 @@ void set_graphics(unsigned char sprite_mode);
 // Inputs: none
 // Return: returns a value to be written to VDP_REG_MODE1 (and VDP_REG1_KSCAN_MIRROR if you use kscan())
 // The screen is blanked until you do this write, to allow you time to set it up
-unsigned char set_text();
+unsigned char set_text_raw();
+void set_text();
 
 // set_multicolor - sets up multicolor mode - 64x48, 256 chars, color, sprites
 // Inputs: pass in VDP_SPR_xxx for the sprite mode you want

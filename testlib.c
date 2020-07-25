@@ -3,7 +3,7 @@
 
 // tested
 int main() {
-	unsigned char x = set_text();
+	unsigned char x = set_text_raw();
 	unsigned char col = (COLOR_GRAY<<4)|COLOR_DKBLUE;
 	unsigned char cnt = 0;
 	// TODO: test - do we need delay between register writes?
