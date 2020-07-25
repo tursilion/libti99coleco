@@ -1,7 +1,7 @@
 CC = "c:/program files/sdcc/bin/sdcc"
-CFLAGS = -mz80 -c "-I../include" --std-sdcc99 --vc -DENABLEFX --opt-code-speed
+CFLAGS = -mz80 -c "-I../include" --std-sdcc99 --vc -DENABLEFX --opt-code-speed --fsigned-char
 AS = "c:/program files/sdcc/bin/sdasz80"
-AR = "c:/program files/sdcc/bin/sdcclib"
+AR = "c:/program files/sdcc/bin/sdar"
 AFLAGS = -plosgff
 RM = del /F
 # might need to use o for older SDCC, rel for newer
@@ -62,7 +62,7 @@ all: library test
 
 library: $(OBJECT_LIST)
 	$(RM) testlib.$(EXT) testlib.asm
-	$(AR) -r $(NAME) $(OBJECT_LIST)
+	$(AR) -rc $(NAME) $(OBJECT_LIST)
 	
 test: library testlib.$(EXT) crt0.$(EXT)
 	$(CC) -mz80 --no-std-crt0 --code-loc 0x8100 --data-loc 0x7000 -l./libti99.a "./crt0.$(EXT)" testlib.$(EXT) 

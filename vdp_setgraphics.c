@@ -5,7 +5,7 @@
 
 // setting up standard screen modes - blanks the screen and returns the unblank command
 // interrupts are also disabled. Unblank will re-enable them, too, write it to VDP_REG_MODE1
-unsigned char set_graphics(unsigned char sprite_mode) {
+unsigned char set_graphics_raw(unsigned char sprite_mode) {
 	// this layout is untested but should match editor/assembler's
 	unsigned char unblank = VDP_MODE1_16K | VDP_MODE1_UNBLANK | VDP_MODE1_INT | sprite_mode;
 	VDP_SET_REGISTER(VDP_REG_MODE1, VDP_MODE1_16K);		// no need to OR in the sprite mode for now
@@ -21,4 +21,9 @@ unsigned char set_graphics(unsigned char sprite_mode) {
 	nTextPos = nTextRow;
 	vdpmemset(gImage, ' ', nTextEnd+1);
 	return unblank;
+}
+
+void set_graphics(unsigned char sprite_mode) {
+    unsigned char x = set_graphics_raw(sprite_mode);
+    VDP_SET_REGISTER(VDP_REG_MODE1, x);
 }

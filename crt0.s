@@ -36,7 +36,6 @@
 ;	nop
 	
 	jp nmi		; NMI
-	nop
 	.ascii " / / NOT"
 
 start:
