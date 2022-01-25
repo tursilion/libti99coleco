@@ -129,6 +129,8 @@ extern volatile unsigned char vdpLimi;
 // we enable interrupts via a mask byte, as Coleco ints are NMI
 // Note that the enable therefore needs to check a flag!
 // Note that on the TI interrupts DISABLED is the default state
+// TODO: Non-intuitive - as written, VDP_INT_ENABLE is a one-shot - myNmi()
+// turns all interrupts back off again. Normally, use VDP_INT_POLL in your loop.
 #define VDP_INT_ENABLE			{ __asm__("\tpush hl\n\tld hl,#_vdpLimi\n\tset 0,(hl)\n\tpop hl"); if (vdpLimi&0x80) my_nmi(); }
 #define VDP_INT_DISABLE			{ __asm__("\tpush hl\n\tld hl,#_vdpLimi\n\tres 0,(hl)\n\tpop hl"); }
 #define VDP_INT_POLL {	\
@@ -273,6 +275,7 @@ unsigned char vdpwaitvint();
 // It works in both 32x24 and 40x24 modes. Tracking of the cursor is thus 
 // automatic in this function, and it pulls in scrn_scroll.
 void putchar(char x);
+#define vdpputchar putchar
 
 // vdpprintf - writes a string with limited formatting. Only supports a very small subset
 // of formatting at the moment. Supports width (for most fields), s, u, i, d, c and X
