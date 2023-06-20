@@ -22,7 +22,7 @@ volatile __sfr __at 0xbe VDPWD;
 // safe delay between VDP accesses - each NOP is 4 on the Coleco (5 on MSX apparently! Watch out!)
 // The VDP needs 29 cycles between accesses, roughly. The code generated often is slow enough, if variables are used instead
 // of constants. If you need the speed, you could hand-optimize the asm knowing this. ;)
-inline void VDP_SAFE_DELAY() {	
+inline void VDP_SAFE_DELAY(void) {	
 // still tuning this... from online comments:
 // Actually, Z80 frequency is 3.579545 MHz (MSX) so the math comes to 28.63, roughly 29 T-states.
 // You must include the OUT instruction, so it means we need 18 additional T-states before the next 
@@ -97,7 +97,7 @@ extern volatile unsigned char VDP_STATUS_MIRROR;
 
 // If using KSCAN, you must put a copy of VDP register 1 (returned by the 'set' functions)
 // at this address, otherwise the first time a key is pressed, the value will be overwritten.
-// The console uses this to undo the screen timeout blanking. (not needed)
+// The console uses this to undo the screen timeout blanking. (not needed on Coleco)
 //#define VDP_REG1_KSCAN_MIRROR	*((volatile unsigned char*)0x83d4)
 //#define FIX_KSCAN(x) VDP_REG1_KSCAN_MIRROR=(x);
 #define FIX_KSCAN(x)
@@ -209,8 +209,8 @@ void set_graphics(unsigned char sprite_mode);
 // Inputs: none
 // Return: returns a value to be written to VDP_REG_MODE1 (and VDP_REG1_KSCAN_MIRROR if you use kscan())
 // The screen is blanked until you do this write, to allow you time to set it up
-unsigned char set_text_raw();
-void set_text();
+unsigned char set_text_raw(void);
+void set_text(void);
 
 // set_multicolor - sets up multicolor mode - 64x48, 256 chars, color, sprites
 // Inputs: pass in VDP_SPR_xxx for the sprite mode you want
@@ -267,7 +267,7 @@ void vdpscreenchar(int pAddr, unsigned char ch);
 // vdpwaitvint - enables console interrupts, then waits for one to happen
 // Interrupts are disabled upon exit.
 // returns non-zero if the interrupt fired before entry (ie: we are late)
-unsigned char vdpwaitvint();
+unsigned char vdpwaitvint(void);
 
 // putchar - writes a single character with limited formatting to the bottom of the screen
 // Inputs: character to emit
@@ -310,7 +310,7 @@ void fast_hexprint(unsigned char x);
 void faster_hexprint(unsigned char x);
 
 // scrn_scroll - scrolls the screen upwards one line - works in 32x24 and 40x24 modes
-void scrn_scroll();
+void scrn_scroll(void);
 
 // hchar - repeat a character horizontally on the screen, similar to CALL HCHAR
 // Inputs: row and column (0-based, not 1-based) to start, character to repeat, number of repetitions (not optional)
@@ -340,12 +340,12 @@ void delsprite(unsigned char n);
 
 // charset - load the default character set from GROM. This will load both upper and lowercase (small capital) characters.
 // Not compatible with the 99/4, if it matters.
-void charset();
+void charset(void);
 
 // charsetlc - load the default character set including true lowercase. This code includes a lower-case character
 // set and shifts the GROM character set to align better with it. Because it pulls in data, it does take a little more
 // memory (208 bytes). Not compatible with the 99/4, if it matters.
-void charsetlc();
+void charsetlc(void);
 
 // gplvdp - copy data from a GPL function to VDP memory. 
 // Inputs: address of a GPL vector, VDP address to copy to, number of characters to copy
@@ -358,9 +358,9 @@ void charsetlc();
 
 // user interrupt access helpers (for more portable code)
 //void vdpinit();	called automatically, don't use
-void setUserIntHook(void (*hookfn)());
-void clearUserIntHook();
-void my_nmi();
+void setUserIntHook(void (*hookfn)(void));
+void clearUserIntHook(void);
+void my_nmi(void);
 
 // global pointers for all to enjoy - make sure the screen setup code updates them!
 // assumptions here are for E/A environment, they may not be accurate and your

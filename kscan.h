@@ -51,9 +51,9 @@ extern volatile unsigned char KSCAN_STATUS;
 // requires console ROM and GROM to be present. (not fully supported - we wrap to kscanfast instead)
 unsigned char kscan(unsigned char mode);
 
-// does a simple read of the keyboard with no shifts and no debounce. Mode 0 is keyboard,
-// mode 1 is joystick 1 fire button (only!) and mode 2 is joystick 2 fire button (only!)
-// Fire buttons are /not/ aliased to 'Q' and 'Y' on the keyboard. Returns key in KSCAN_KEY,
+// does a simple read of the keyboard with no shifts and no debounce.
+// Mode 0 and 1 read left controller, mode 2 reads right controller
+// Returns key in KSCAN_KEY,
 // no status. Key is 0xff if none pressed.
 void kscanfast(unsigned char mode);
 

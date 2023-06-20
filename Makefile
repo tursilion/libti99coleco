@@ -1,9 +1,9 @@
-CC = "c:/program files/sdcc/bin/sdcc"
+CC = "D:/work/coleco/sdcc-4.2.0/bin/sdcc"
 CFLAGS = -mz80 -c "-I../include" --std-sdcc99 --vc -DENABLEFX --opt-code-speed --fsigned-char
-AS = "c:/program files/sdcc/bin/sdasz80"
-AR = "c:/program files/sdcc/bin/sdar"
+AS = "D:/work/coleco/sdcc-4.2.0/bin/sdasz80"
+AR = "D:/work/coleco/sdcc-4.2.0/bin/sdar"
 AFLAGS = -plosgff
-RM = del /F
+RM = cmd /c del /F
 # might need to use o for older SDCC, rel for newer
 EXT=rel
 
