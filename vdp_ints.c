@@ -24,6 +24,9 @@ static void (*userint)() = 0;
 // interrupt counter
 volatile unsigned char VDP_INT_COUNTER = 0;
 
+// used by vdpwaitvint - make certain it's reset
+extern unsigned char gSaveIntCnt;
+
 // May be called from true NMI or from VDP_INTERRUPT_ENABLE, depending on
 // the flag setting when the true NMI fires.
 void my_nmi() {
@@ -45,8 +48,7 @@ void my_nmi() {
 	// then the state of vdpLimi could be out of sync with the real interrupt line, and cause
 	// a double call. User apps should only read the mirror variable. Should I enforce that?
 
-	vdpLimi = 0;				// clear the interrupt flags - do this before clearing the VDP
-	VDP_STATUS_MIRROR = VDPST;	// release the VDP - we could instantly trigger again, but the vdpLimi is zeroed, so no loop
+    VDP_CLEAR_VBLANK;           // release the VDP - we could instantly trigger again, but the vdpLimi is zeroed, so no loop
 	VDP_INT_COUNTER++;			// count up the frames
 
 	// the TI is running with ints off, so it won't retrigger in the
@@ -80,6 +82,12 @@ void vdpinit() {
 	SOUND = 0xbf;
 	SOUND = 0xdf;
 	SOUND = 0xff;
+
+    // zero variables
+    VDP_STATUS_MIRROR = 0;
+    userint = (void (*)())0;
+    VDP_INT_COUNTER = 1;
+    gSaveIntCnt = 0;
 
 	// interrupts off
 	vdpLimi = 0;
