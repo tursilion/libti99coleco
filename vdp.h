@@ -82,6 +82,7 @@ inline int VDP_SCREEN_TEXT(unsigned int r, unsigned char c)			{	return (((r)<<5)
 //*********************
 
 // Interrupt counter - incremented each interrupt
+// WARNING: NEVER WRITE TO THIS VALUE. READ ONLY.
 extern volatile unsigned char VDP_INT_COUNTER;
 
 // Maximum number of sprites performing automatic motion (not supported)
