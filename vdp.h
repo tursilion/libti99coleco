@@ -1,3 +1,6 @@
+#ifndef VDP_H
+#define VDP_H
+
 // VDP header for the TI-99/4A by Tursi aka Mike Brent
 // This code and library released into the Public Domain
 // You can copy this file and use it at will ;)
@@ -130,9 +133,10 @@ extern volatile unsigned char vdpLimi;
 // we enable interrupts via a mask byte, as Coleco ints are NMI
 // Note that the enable therefore needs to check a flag!
 // Note that on the TI interrupts DISABLED is the default state
-// TODO: Non-intuitive - as written, VDP_INT_ENABLE is a one-shot - myNmi()
-// turns all interrupts back off again. Normally, use VDP_INT_POLL in your loop.
-#define VDP_INT_ENABLE			{ __asm__("\tpush hl\n\tld hl,#_vdpLimi\n\tset 0,(hl)\n\tpop hl"); if (vdpLimi&0x80) my_nmi(); }
+// on enable, we make sure we are disabled before entering the NMI, just in case we race
+// with another one. All the assumptions in the code assume that ints are disabled on entry
+// to prevent double-call.
+#define VDP_INT_ENABLE			{ if (vdpLimi&0x80) { vdpLimi=0; my_nmi(); } __asm__("\tpush hl\n\tld hl,#_vdpLimi\n\tset 0,(hl)\n\tpop hl"); }
 #define VDP_INT_DISABLE			{ __asm__("\tpush hl\n\tld hl,#_vdpLimi\n\tres 0,(hl)\n\tpop hl"); }
 #define VDP_INT_POLL {	\
 	VDP_INT_ENABLE;		\
@@ -380,3 +384,5 @@ extern unsigned char gSaveIntCnt;	// console interrupt count byte
 
 // 512 byte lookup table for converting a byte to two ASCII hex characters
 extern const unsigned int byte2hex[256];
+
+#endif

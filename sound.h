@@ -38,7 +38,7 @@ volatile __sfr __at 0xff SOUND;
 //inline void SET_SOUND_PTR(unsigned int x)	{	SOUND_PTR = x;					}
 
 // set that the sound list is in VDP
-//inline void SET_SOUND_VDP()					{	SOUND_VDP |= SOUND_VDP_MASK;	}
+//inline void SET_SOUND_VDP()				{	SOUND_VDP |= SOUND_VDP_MASK;	}
 
 // set that the sound list is in GROM
 //inline void SET_SOUND_GROM()				{	SOUND_VDP &= ~SOUND_VDP_MASK;	}
@@ -48,3 +48,30 @@ volatile __sfr __at 0xff SOUND;
 
 // mute all channels
 inline void MUTE_SOUND()					{ SOUND=TONE1_VOL|0x0f; SOUND=TONE2_VOL|0x0f; SOUND=TONE3_VOL|0x0f; SOUND=NOISE_VOL|0x0f; }
+
+//*********************
+// AY sound chip access (if SGM installed)
+//*********************
+volatile __sfr __at 0x50 AY_REGISTER;
+volatile __sfr __at 0x51 AY_DATA_WRITE;
+volatile __sfr __at 0x52 AY_DATA_READ;
+
+#define AY_PERIODA_LOW  0
+#define AY_PERIODA_HIGH 1
+#define AY_PERIODB_LOW  2
+#define AY_PERIODB_HIGH 3
+#define AY_PERIODC_LOW  4
+#define AY_PERIODC_HIGH 5
+#define AY_NOISE        6
+#define AY_MIXER        7
+#define AY_VOLA         8
+#define AY_VOLB         9
+#define AY_VOLC         10
+#define AY_ENV_LOW      11
+#define AY_ENV_HIGH     12
+#define AY_ENV_SHAPE    13
+#define AY_PORTA        14
+#define AY_PORTB        15
+
+
+

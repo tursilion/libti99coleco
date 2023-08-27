@@ -1,9 +1,12 @@
-CC = "D:/work/coleco/sdcc-4.2.0/bin/sdcc"
-CFLAGS = -mz80 -c "-I../include" --std-sdcc99 --vc -DENABLEFX --opt-code-speed --fsigned-char
-AS = "D:/work/coleco/sdcc-4.2.0/bin/sdasz80"
-AR = "D:/work/coleco/sdcc-4.2.0/bin/sdar"
+#CC = "D:/work/coleco/sdcc-4.2.0/bin/sdcc"
+#AS = "D:/work/coleco/sdcc-4.2.0/bin/sdasz80"
+#AR = "D:/work/coleco/sdcc-4.2.0/bin/sdar"
+CC = "D:/work/coleco/sdcc20230715/bin/sdcc"
+AS = "D:/work/coleco/sdcc20230715/bin/sdasz80"
+AR = "D:/work/coleco/sdcc20230715/bin/sdar"
+CFLAGS = -mz80 -c "-I../include" "-I." --std-sdcc99 --less-pedantic --vc -DENABLEFX --opt-code-speed --fsigned-char
 AFLAGS = -plosgff
-RM = cmd /c del /F
+RM = cmd /c del
 # might need to use o for older SDCC, rel for newer
 EXT=rel
 
@@ -13,6 +16,12 @@ NAME=libti99.a
 # List of compiled objects used in executable
 #  str_strlen.$(EXT)		- seems to be unneeded in latest SDCC
 OBJECT_LIST=\
+  f18a_detect.$(EXT)    \
+  f18a_loadpal.$(EXT)    \
+  f18a_lock.$(EXT)    \
+  f18a_reset.$(EXT)    \
+  f18a_startgpu.$(EXT)    \
+  f18a_unlock.$(EXT)    \
   halt.$(EXT)			\
   kscan.$(EXT)			\
   kscanfast.$(EXT)		\
